@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ฝุ่นบ้านฉัน · Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+  :root{
+    --ink:#0A1A2F;          /* near-navy text */
+    --sky:#4FC3F7;          /* bright sky */
+    --deep:#1565C0;         /* deep ocean */
+    --mist:#EAF4FB;         /* pale mist bg */
+    --cloud:#FFFFFF;
+    --haze:#7C93A8;         /* muted label */
+    --line:#DCE9F2;
+    /* AQI palette */
+    --good:#3BC44A; --mod:#F4C20D; --usg:#FF8C1A; --bad:#E63946; --vbad:#9D4EDD; --haz:#7D1128;
+    --shadow:0 8px 30px rgba(21,101,192,.10);
+    --shadow-sm:0 2px 10px rgba(21,101,192,.06);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    font-family:'IBM Plex Sans Thai',system-ui,sans-serif;
+    background:
+      radial-gradient(120% 80% at 50% -10%, rgba(79,195,247,.18) 0%, rgba(234,244,251,0) 60%),
+      var(--mist);
+    color:var(--ink);
+    min-height:100dvh;
+    overflow-x:hidden;
+  }
+  .wrap{max-width:480px;margin:0 auto;padding:20px 18px 40px;position:relative}
+
+  /* ---------- header ---------- */
+  .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+  .greet{display:flex;flex-direction:column;gap:2px}
+  .greet .hi{font-size:13px;color:var(--haze);font-weight:500}
+  .greet .name{font-size:18px;font-weight:700;letter-spacing:-.01em}
+  .ava{width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,var(--sky),var(--deep));
+    display:grid;place-items:center;color:#fff;font-weight:700;font-size:16px;box-shadow:var(--shadow-sm);
+    overflow:hidden}
+  .ava img{width:100%;height:100%;object-fit:cover}
+
+  /* ---------- hero gauge ---------- */
+  .hero{
+    background:var(--cloud);border-radius:28px;padding:28px 24px 26px;box-shadow:var(--shadow);
+    position:relative;overflow:hidden;margin-bottom:16px;
+  }
+  .hero::before{content:"";position:absolute;inset:0;
+    background:radial-gradient(90% 60% at 50% 0%, rgba(79,195,247,.10), transparent 70%);pointer-events:none}
+  .hero .label{font-size:12px;font-weight:600;color:var(--haze);text-transform:uppercase;letter-spacing:.08em;
+    text-align:center;margin-bottom:14px}
+  .dial{position:relative;width:200px;height:200px;margin:0 auto}
+  .dial svg{transform:rotate(-90deg)}
+  .dial .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+  .dial .aqi-num{font-family:'Sora',sans-serif;font-size:54px;font-weight:800;line-height:1;letter-spacing:-.03em}
+  .dial .aqi-unit{font-size:11px;color:var(--haze);font-weight:600;letter-spacing:.06em}
+  .badge{display:inline-flex;align-items:center;gap:7px;margin:18px auto 0;padding:9px 18px;border-radius:999px;
+    font-weight:700;font-size:15px;color:#fff}
+  .badge .dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.9)}
+  .hero .advice{text-align:center;margin-top:14px;font-size:14px;line-height:1.5;color:#46586B;font-weight:500}
+  .hero .emoji{font-size:34px;text-align:center;margin-bottom:6px}
+
+  /* ---------- metric chips ---------- */
+  .chips{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+  .chip{background:var(--cloud);border-radius:18px;padding:15px 12px;text-align:center;box-shadow:var(--shadow-sm)}
+  .chip .k{font-size:11px;color:var(--haze);font-weight:600;margin-bottom:5px;letter-spacing:.02em}
+  .chip .v{font-family:'Sora',sans-serif;font-size:21px;font-weight:700;letter-spacing:-.02em}
+  .chip .u{font-size:10px;color:var(--haze);font-weight:600}
+
+  /* ---------- chart card ---------- */
+  .card{background:var(--cloud);border-radius:24px;padding:22px 18px 18px;box-shadow:var(--shadow);margin-bottom:16px}
+  .card .head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:18px;padding:0 4px}
+  .card .head h2{font-size:15px;font-weight:700;letter-spacing:-.01em}
+  .card .head .sub{font-size:11px;color:var(--haze);font-weight:600}
+  .chart-box{position:relative;height:190px}
+
+  /* ---------- compare strip ---------- */
+  .compare{background:linear-gradient(135deg,var(--deep),#0D47A1);border-radius:24px;padding:20px 22px;
+    box-shadow:var(--shadow);color:#fff;display:flex;align-items:center;justify-content:space-between;gap:16px}
+  .compare .side{flex:1;text-align:center}
+  .compare .side .t{font-size:11px;opacity:.75;font-weight:600;margin-bottom:6px}
+  .compare .side .n{font-family:'Sora',sans-serif;font-size:28px;font-weight:800;line-height:1}
+  .compare .vs{font-size:11px;opacity:.6;font-weight:700;padding:0 2px}
+  .compare .div{width:1px;align-self:stretch;background:rgba(255,255,255,.18)}
+
+  /* ---------- footer ---------- */
+  .foot{text-align:center;margin-top:24px;font-size:11px;color:var(--haze);line-height:1.7}
+  .foot .stamp{font-weight:600;color:var(--deep)}
+  .pulse{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--good);margin-right:5px;
+    animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+  /* ---------- skeleton / states ---------- */
+  .state{min-height:100dvh;display:grid;place-items:center;padding:40px}
+  .state .box{text-align:center;max-width:300px}
+  .spinner{width:44px;height:44px;border:3px solid var(--line);border-top-color:var(--deep);border-radius:50%;
+    margin:0 auto 18px;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .state h3{font-size:16px;font-weight:700;margin-bottom:8px}
+  .state p{font-size:13px;color:var(--haze);line-height:1.6}
+  .hidden{display:none!important}
+
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  .demo-tag{position:fixed;top:0;left:0;right:0;background:var(--mod);color:#3A2E00;font-size:11px;
+    font-weight:700;text-align:center;padding:5px;z-index:99;letter-spacing:.02em}
+  .demo-tag.hidden{display:none}
+</style>
+</head>
+<body>
+
+<div id="demoTag" class="demo-tag">โหมดตัวอย่าง · ยังไม่ได้เชื่อมข้อมูลจริง</div>
+
+<!-- LOADING -->
+<div id="loading" class="state">
+  <div class="box">
+    <div class="spinner"></div>
+    <h3>กำลังโหลดข้อมูลฝุ่น</h3>
+    <p>กำลังเชื่อมต่อกับเซ็นเซอร์บ้านคุณ</p>
+  </div>
+</div>
+
+<!-- ERROR -->
+<div id="error" class="state hidden">
+  <div class="box">
+    <h3>โหลดข้อมูลไม่สำเร็จ</h3>
+    <p id="errMsg">ลองเปิดใหม่อีกครั้ง หรือเช็คการเชื่อมต่ออินเทอร์เน็ต</p>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="app" class="wrap hidden">
+
+  <div class="top">
+    <div class="greet">
+      <span class="hi">สวัสดี 👋</span>
+      <span class="name" id="userName">บ้านของฉัน</span>
+    </div>
+    <div class="ava" id="avatar">บ</div>
+  </div>
+
+  <!-- hero gauge -->
+  <div class="hero">
+    <div class="label">ดัชนีคุณภาพอากาศตอนนี้</div>
+    <div class="dial">
+      <svg width="200" height="200" viewBox="0 0 200 200">
+        <circle cx="100" cy="100" r="86" fill="none" stroke="#EDF3F8" stroke-width="16"/>
+        <circle id="ring" cx="100" cy="100" r="86" fill="none" stroke="#3BC44A" stroke-width="16"
+                stroke-linecap="round" stroke-dasharray="540" stroke-dashoffset="540"
+                style="transition:stroke-dashoffset 1.1s cubic-bezier(.4,0,.2,1),stroke .6s"/>
+      </svg>
+      <div class="center">
+        <div class="aqi-num" id="aqiNum">--</div>
+        <div class="aqi-unit">AQI (US)</div>
+      </div>
+    </div>
+    <div style="text-align:center">
+      <span class="badge" id="badge"><span class="dot"></span><span id="badgeText">--</span></span>
+    </div>
+    <div class="advice" id="advice">กำลังประเมินสถานการณ์...</div>
+  </div>
+
+  <!-- chips -->
+  <div class="chips">
+    <div class="chip">
+      <div class="k">PM2.5</div>
+      <div class="v" id="pm25">--</div>
+      <div class="u">µg/m³</div>
+    </div>
+    <div class="chip">
+      <div class="k">PM10</div>
+      <div class="v" id="pm10">--</div>
+      <div class="u">µg/m³</div>
+    </div>
+    <div class="chip">
+      <div class="k">ความชื้น</div>
+      <div class="v" id="humid">--</div>
+      <div class="u">%</div>
+    </div>
+  </div>
+
+  <!-- chart -->
+  <div class="card">
+    <div class="head">
+      <h2>แนวโน้ม 24 ชั่วโมง</h2>
+      <span class="sub">PM2.5 · PM10</span>
+    </div>
+    <div class="chart-box">
+      <canvas id="trend"></canvas>
+    </div>
+  </div>
+
+  <!-- compare -->
+  <div class="compare">
+    <div class="side">
+      <div class="t">🏠 บ้านคุณ</div>
+      <div class="n" id="cmpHome">--</div>
+    </div>
+    <div class="div"></div>
+    <div class="vs">เทียบ</div>
+    <div class="div"></div>
+    <div class="side">
+      <div class="t">🏛️ สถานีรัฐ</div>
+      <div class="n" id="cmpGov">--</div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div><span class="pulse"></span>อัปเดตล่าสุด <span class="stamp" id="stamp">--</span></div>
+    <div style="margin-top:4px">ข้อมูลจากเซ็นเซอร์ PM2.5 · เทียบ Air4Thai</div>
+  </div>
+
+</div>
+
+<script>
+/* ============================================================
+   CONFIG — แก้ 2 ค่านี้ตอนเชื่อมของจริง
+   ============================================================ */
+const LIFF_ID = "";                  // ใส่ LIFF ID หลังสร้างใน LINE Developers
+const API_URL = "";                  // ใส่ n8n webhook GET URL (workflow D) ตอนทำเสร็จ
+                                      // ตอนนี้เว้นว่าง = ใช้ mock data
+
+/* ============================================================
+   AQI helper (US EPA) จาก PM2.5
+   ============================================================ */
+const BP = [
+  [0,12,0,50],[12.1,35.4,51,100],[35.5,55.4,101,150],
+  [55.5,150.4,151,200],[150.5,250.4,201,300],[250.5,500.4,301,500]
+];
+function toAQI(c){
+  if(c==null||isNaN(c))return null;
+  if(c>500.4)return 500;
+  const b=BP.find(x=>c>=x[0]&&c<=x[1])||BP[BP.length-1];
+  return Math.round((b[3]-b[2])/(b[1]-b[0])*(c-b[0])+b[2]);
+}
+function aqiInfo(aqi){
+  if(aqi==null)return{level:'ไม่มีข้อมูล',color:'#7C93A8',emoji:'❓',advice:'ยังไม่มีค่าฝุ่นล่าสุด'};
+  if(aqi<=50) return{level:'ดีมาก',color:'#3BC44A',emoji:'😊',advice:'อากาศดี ออกกำลังกายกลางแจ้งได้เต็มที่'};
+  if(aqi<=100)return{level:'ปานกลาง',color:'#F4C20D',emoji:'🙂',advice:'กลุ่มเสี่ยงควรสังเกตอาการ คนทั่วไปทำกิจกรรมได้ปกติ'};
+  if(aqi<=150)return{level:'เริ่มมีผลต่อสุขภาพ',color:'#FF8C1A',emoji:'😷',advice:'กลุ่มเสี่ยงลดกิจกรรมกลางแจ้ง พกหน้ากากอนามัย'};
+  if(aqi<=200)return{level:'มีผลต่อสุขภาพ',color:'#E63946',emoji:'😨',advice:'ทุกคนควรใส่หน้ากาก N95 เลี่ยงออกกำลังกายกลางแจ้ง'};
+  if(aqi<=300)return{level:'อันตราย',color:'#9D4EDD',emoji:'🚨',advice:'งดออกนอกอาคาร ปิดหน้าต่าง เปิดเครื่องฟอกอากาศ'};
+  return{level:'อันตรายมาก',color:'#7D1128',emoji:'☠️',advice:'อยู่ในอาคารที่มีเครื่องฟอกอากาศ งดกิจกรรมกลางแจ้งทั้งหมด'};
+}
+
+/* ============================================================
+   MOCK DATA — ใช้ตอนยังไม่มี API (สมจริง อิงรูปแบบฝุ่นกรุงเทพ)
+   ============================================================ */
+function mockData(){
+  const now=new Date();
+  const hist=[];
+  for(let i=23;i>=0;i--){
+    const t=new Date(now-i*3600*1000);
+    // จำลอง: เช้าตรู่/ค่ำฝุ่นสูง กลางวันต่ำ
+    const h=t.getHours();
+    let base=45+35*Math.sin((h-6)/24*Math.PI*2)*-1;
+    base+=Math.random()*20-10;
+    const pm25=Math.max(8,Math.round(base));
+    hist.push({
+      time:t.toTimeString().slice(0,5),
+      pm25,
+      pm10:Math.round(pm25*1.4+Math.random()*15)
+    });
+  }
+  const last=hist[hist.length-1];
+  return {
+    pm25:last.pm25, pm10:last.pm10,
+    humidity:Math.round(55+Math.random()*15),
+    updated:now.toTimeString().slice(0,5),
+    gov_aqi:toAQI(last.pm25-8),     // สถานีรัฐสมมติต่ำกว่านิด
+    history:hist
+  };
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+let chart=null;
+function render(d){
+  const aqi=toAQI(d.pm25);
+  const info=aqiInfo(aqi);
+
+  // gauge
+  document.getElementById('aqiNum').textContent=aqi??'--';
+  const ring=document.getElementById('ring');
+  const pct=Math.min(aqi/300,1);           // 300 = เต็มวง
+  const circ=540;
+  ring.style.stroke=info.color;
+  requestAnimationFrame(()=>{ring.style.strokeDashoffset=circ*(1-pct)});
+
+  // badge
+  const badge=document.getElementById('badge');
+  badge.style.background=info.color;
+  document.getElementById('badgeText').textContent=info.level;
+  document.querySelector('.hero .advice').textContent=info.advice;
+
+  // chips
+  document.getElementById('pm25').textContent=d.pm25;
+  document.getElementById('pm10').textContent=d.pm10;
+  document.getElementById('humid').textContent=d.humidity;
+
+  // compare
+  document.getElementById('cmpHome').textContent=aqi??'--';
+  document.getElementById('cmpGov').textContent=d.gov_aqi??'--';
+
+  // stamp
+  document.getElementById('stamp').textContent=d.updated+' น.';
+
+  // chart
+  const labels=d.history.map(h=>h.time);
+  const pm25=d.history.map(h=>h.pm25);
+  const pm10=d.history.map(h=>h.pm10);
+  const ctx=document.getElementById('trend');
+  if(chart)chart.destroy();
+  const g=ctx.getContext('2d');
+  const grad=g.createLinearGradient(0,0,0,190);
+  grad.addColorStop(0,'rgba(230,57,70,.22)');
+  grad.addColorStop(1,'rgba(230,57,70,0)');
+  chart=new Chart(ctx,{
+    type:'line',
+    data:{labels,datasets:[
+      {label:'PM2.5',data:pm25,borderColor:'#E63946',backgroundColor:grad,fill:true,
+       tension:.4,borderWidth:2.5,pointRadius:0,pointHoverRadius:4},
+      {label:'PM10',data:pm10,borderColor:'#1565C0',backgroundColor:'transparent',
+       tension:.4,borderWidth:2,pointRadius:0,pointHoverRadius:4,borderDash:[4,4]}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{intersect:false,mode:'index'},
+      plugins:{legend:{display:false},
+        tooltip:{backgroundColor:'#0A1A2F',padding:10,cornerRadius:10,titleFont:{family:'IBM Plex Sans Thai'},
+          bodyFont:{family:'IBM Plex Sans Thai'}}},
+      scales:{
+        x:{grid:{display:false},ticks:{color:'#A9BDD0',font:{size:10,family:'IBM Plex Sans Thai'},maxTicksLimit:6}},
+        y:{grid:{color:'#EDF3F8'},border:{display:false},
+           ticks:{color:'#A9BDD0',font:{size:10,family:'IBM Plex Sans Thai'},maxTicksLimit:5},
+           beginAtZero:true}
+      }
+    }
+  });
+
+  show('app');
+}
+
+function show(id){
+  ['loading','error','app'].forEach(x=>document.getElementById(x).classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+}
+function showError(msg){
+  document.getElementById('errMsg').textContent=msg||'ลองเปิดใหม่อีกครั้ง';
+  show('error');
+}
+
+/* ============================================================
+   DATA FETCH
+   ============================================================ */
+async function loadData(userId){
+  // ยังไม่ตั้ง API → ใช้ mock
+  if(!API_URL){
+    await new Promise(r=>setTimeout(r,900)); // จำลองโหลด
+    render(mockData());
+    return;
+  }
+  // มี API → ดึงจริง
+  try{
+    const u=userId?`${API_URL}?userId=${encodeURIComponent(userId)}`:API_URL;
+    const res=await fetch(u);
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const d=await res.json();
+    document.getElementById('demoTag').classList.add('hidden');
+    render(d);
+  }catch(e){
+    console.error(e);
+    showError('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ('+e.message+')');
+  }
+}
+
+/* ============================================================
+   LIFF INIT
+   ============================================================ */
+async function main(){
+  // ยังไม่ตั้ง LIFF_ID → ข้าม LIFF เปิดเป็นเว็บธรรมดา (ทดสอบ/ตัวอย่าง)
+  if(!LIFF_ID){
+    await loadData(null);
+    return;
+  }
+  try{
+    await liff.init({liffId:LIFF_ID});
+    if(!liff.isLoggedIn()){liff.login();return;}
+    const profile=await liff.getProfile();
+    // ใส่ชื่อ + รูป
+    document.getElementById('userName').textContent=profile.displayName||'บ้านของฉัน';
+    if(profile.pictureUrl){
+      const a=document.getElementById('avatar');
+      a.innerHTML=`<img src="${profile.pictureUrl}" alt="">`;
+    }else{
+      document.getElementById('avatar').textContent=(profile.displayName||'บ')[0];
+    }
+    document.getElementById('demoTag').classList.add('hidden');
+    await loadData(profile.userId);   // ส่ง userId ให้ API (เผื่อ multi-tenant)
+  }catch(e){
+    console.error('LIFF error',e);
+    // LIFF พัง → fallback mock เพื่อให้เห็นหน้า
+    await loadData(null);
+  }
+}
+
+main();
+</script>
+</body>
+</html>
